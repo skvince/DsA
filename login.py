@@ -10,24 +10,53 @@ def handle_login():
     username = email_input.get().strip()
     password = password_input.get()
     db = Database()
-    root.destroy()
     python_exe = sys.executable
     if username == "admin" and password == "123":
+        root.destroy()
         subprocess.run([python_exe, "admin.py"])
-    elif username.isdigit():
-        uid = int(username)
-        teacher = db.cursor.execute("SELECT id, firstname, lastname, password FROM teachers WHERE id=?", (uid,)).fetchone()
-        if teacher and teacher[3] == password:
-            t_name = f"{teacher[1]} {teacher[2]}"
-            subprocess.run([python_exe, "teacher.py", str(teacher[0]), t_name])
-        else:
-            student = db.cursor.execute("SELECT id, firstname, lastname, password FROM students WHERE id=?", (uid,)).fetchone()
-            if student and student[3] == password:
-                s_name = f"{student[1]} {student[2]}"
-                subprocess.run([python_exe, "student.py", str(student[0]), s_name])
-            else:
-                messagebox.showerror("Error", "Invalid ID or Password")
     else:
+        # Support usernames like:
+        # - 12 (numeric id)
+        # - T-012 (teacher id)
+        # - S-012 (student id)
+        raw = username.replace(" ", "")
+        role_prefix = None
+        if raw.upper().startswith("T-"):
+            role_prefix = "T"
+            raw = raw[2:]
+        elif raw.upper().startswith("S-"):
+            role_prefix = "S"
+            raw = raw[2:]
+
+        if raw.isdigit():
+            uid = int(raw)
+
+            # If prefix says teacher/student, only try that table.
+            if role_prefix in (None, "T"):
+                teacher = db.cursor.execute(
+                    "SELECT id, firstname, lastname, password FROM teachers WHERE id=?",
+                    (uid,)
+                ).fetchone()
+                if teacher and teacher[3] is not None and teacher[3] == password:
+                    t_name = f"{teacher[1]} {teacher[2]}"
+                    root.destroy()
+                    subprocess.run([python_exe, "teacher.py", str(teacher[0]), t_name])
+                    return
+
+            if role_prefix in (None, "S"):
+                student = db.cursor.execute(
+                    "SELECT id, firstname, lastname, password FROM students WHERE id=?",
+                    (uid,)
+                ).fetchone()
+                if student and student[3] is not None and student[3] == password:
+                    s_name = f"{student[1]} {student[2]}"
+                    root.destroy()
+                    subprocess.run([python_exe, "student.py", str(student[0]), s_name])
+                    return
+
+            messagebox.showerror("Error", "Invalid ID or Password")
+        else:
+            messagebox.showerror("Error", "Invalid Username or Password")
         messagebox.showerror("Error", "Invalid Username or Password")
 
 # Initialize main window

@@ -99,15 +99,24 @@ class Database:
             subject TEXT NOT NULL,
             academic_year TEXT NOT NULL,
             semester TEXT NOT NULL,
-            prelim REAL NOT NULL DEFAULT 0,
-            midterm REAL NOT NULL DEFAULT 0,
-            final REAL NOT NULL DEFAULT 0,
+            prelim REAL,
+            midterm REAL,
+            final REAL,
             FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
             FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE,
             FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
         )
         """)
         self.conn.commit()
+
+        # Enforce uniqueness to prevent duplicate grade rows for the same student/subject/year/semester.
+        # If the table already exists, adding the index is safe.
+        self.cursor.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_grades_student_subject_year_sem
+            ON grades(student_id, subject, academic_year, semester)
+        """)
+        self.conn.commit()
+
 
     # -----------------------------
     # DEPARTMENTS
@@ -163,11 +172,18 @@ class Database:
 
     def get_teachers(self):
         self.cursor.execute("""
-            SELECT teachers.id, teachers.firstname, teachers.lastname, departments.dept_name, teachers.password, teachers.email 
+            SELECT 
+                teachers.id,
+                teachers.firstname,
+                COALESCE(teachers.middlename, ''),
+                teachers.lastname,
+                departments.dept_name,
+                teachers.password
             FROM teachers 
             JOIN departments ON teachers.dept_id = departments.id
         """)
         return self.cursor.fetchall()
+
 
     def get_teacher_by_email(self, email):
         self.cursor.execute("SELECT id, firstname, lastname, dept_id, password, email FROM teachers WHERE email=?", (email,))
@@ -181,6 +197,10 @@ class Database:
         """, (firstname, middlename, lastname, dept_id, email, tid))
         self.conn.commit()
 
+    def delete_teacher(self, tid):
+        self.cursor.execute("DELETE FROM teachers WHERE id=?", (tid,))
+        self.conn.commit()
+
     def update_password(self, table, row_id, password):
         self.cursor.execute(f"UPDATE {table} SET password=? WHERE id=?", (password, row_id))
         self.conn.commit()
@@ -192,16 +212,20 @@ class Database:
         self.cursor.execute("""
             INSERT INTO grades (teacher_id, section_id, student_id, subject, academic_year, semester, prelim, midterm, final)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (teacher_id, section_id, student_id, subject, academic_year, semester, prelim, midterm, final))
+        """, (teacher_id, section_id, student_id, subject, academic_year, semester,
+              None if prelim == 0 or prelim == "" else prelim,
+              None if midterm == 0 or midterm == "" else midterm,
+              None if final == 0 or final == "" else final))
         self.conn.commit()
 
     def get_grades(self, teacher_id=None, academic_year=None, semester=None):
         query = """
             SELECT 
                 grades.id,
-                students.firstname || ' ' || students.lastname AS student_name,
+                (students.firstname || ' ' || COALESCE(students.middlename,'') || ' ' || students.lastname) AS student_name,
                 sections.section_name,
                 grades.subject,
+
                 grades.academic_year,
                 grades.semester,
                 grades.prelim,
@@ -253,8 +277,29 @@ class Database:
         return self.cursor.fetchall()
 
     def update_grade(self, grade_id, prelim, midterm, final):
-        self.cursor.execute("UPDATE grades SET prelim=?, midterm=?, final=? WHERE id=?", (prelim, midterm, final, grade_id))
+        # grades.prelim/midterm/final are NOT NULL in your earlier setup,
+        # so always write numeric values (0.0 for empty).
+        def to_float_or_zero(v):
+            if v is None:
+                return 0.0
+            s = str(v).strip()
+            if s == "":
+                return 0.0
+            try:
+                return float(s)
+            except ValueError:
+                return 0.0
+
+        p = to_float_or_zero(prelim)
+        m = to_float_or_zero(midterm)
+        f = to_float_or_zero(final)
+
+        self.cursor.execute(
+            "UPDATE grades SET prelim=?, midterm=?, final=? WHERE id=?",
+            (p, m, f, grade_id)
+        )
         self.conn.commit()
+
 
     def delete_grade(self, grade_id):
         self.cursor.execute("DELETE FROM grades WHERE id=?", (grade_id,))
@@ -304,11 +349,18 @@ class Database:
 
     def get_students(self):
         self.cursor.execute("""
-            SELECT students.id, students.firstname, students.lastname, sections.section_name, students.password 
+            SELECT 
+                students.id,
+                students.firstname,
+                COALESCE(students.middlename, ''),
+                students.lastname,
+                sections.section_name,
+                students.password
             FROM students 
             JOIN sections ON students.section_id = sections.id
         """)
         return self.cursor.fetchall()
+
 
     def update_student(self, sid, firstname, middlename, lastname, section_id):
         self.cursor.execute("""

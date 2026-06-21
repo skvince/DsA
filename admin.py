@@ -204,12 +204,12 @@ class MSAPortalApp:
         table_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
         # Corrected parent context to table_frame
-        table = ttk.Treeview(table_frame, columns=("ID", "SEC", "DEPT"), show="headings")
+        table = ttk.Treeview(table_frame, columns=("ID", "Section", "Department"), show="headings")
         table.column("ID", width=50, anchor="center")
-        table.column("SEC", width=180, anchor="center")
-        table.column("DEPT", width=180, anchor="center")
+        table.column("Section", width=180, anchor="center")
+        table.column("Department", width=180, anchor="center")
 
-        for c in ("ID", "SEC", "DEPT"): table.heading(c, text=c)
+        for c in ("ID", "Section", "Department"): table.heading(c, text=c)
 
         vsb = ttk.Scrollbar(table_frame, orient="vertical", command=table.yview)
         hsb = ttk.Scrollbar(table_frame, orient="horizontal", command=table.xview)
@@ -317,14 +317,16 @@ class MSAPortalApp:
         table_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
         # Corrected parent context to table_frame
-        table = ttk.Treeview(table_frame, columns=("ID", "FN", "LN", "DEPT", "PASSWORD"), show="headings")
+        table = ttk.Treeview(table_frame, columns=("ID", "First Name", "Middle Name", "Last Name", "Department", "Password"), show="headings")
         table.column("ID", width=50, anchor="center")
-        table.column("FN", width=140, anchor="center")
-        table.column("LN", width=140, anchor="center")
-        table.column("DEPT", width=130, anchor="center")
-        table.column("PASSWORD", width=130, anchor="center")
+        table.column("First Name", width=120, anchor="center")
+        table.column("Middle Name", width=140, anchor="center")
+        table.column("Last Name", width=120, anchor="center")
+        table.column("Department", width=130, anchor="center")
+        table.column("Password", width=130, anchor="center")
 
-        for c in ("ID", "FN", "LN", "DEPT", "PASSWORD"): table.heading(c, text=c)
+        for c in ("ID", "First Name", "Middle Name", "Last Name", "Department", "Password"): table.heading(c, text=c)
+
 
         vsb = ttk.Scrollbar(table_frame, orient="vertical", command=table.yview)
         hsb = ttk.Scrollbar(table_frame, orient="horizontal", command=table.xview)
@@ -340,18 +342,19 @@ class MSAPortalApp:
         def mask_teacher_passwords():
             for item in table.get_children():
                 vals = list(table.item(item, 'values'))
-                if len(vals) >= 5:
-                    pw = teacher_passwords.get(item, str(vals[4]))
-                    vals[4] = '*' * len(pw) if pw else ''
+                if len(vals) >= 6:
+                    pw = teacher_passwords.get(item, str(vals[5]))
+                    vals[5] = '*' * len(pw) if pw else ''
                     table.item(item, values=vals)
 
         def reveal_teacher_passwords():
             for item in table.get_children():
                 vals = list(table.item(item, 'values'))
-                if len(vals) >= 5:
-                    raw_pw = teacher_passwords.get(item, str(vals[4]))
-                    vals[4] = raw_pw if raw_pw else ''
+                if len(vals) >= 6:
+                    raw_pw = teacher_passwords.get(item, str(vals[5]))
+                    vals[5] = raw_pw if raw_pw else ''
                     table.item(item, values=vals)
+
 
         def toggle_teacher_password():
             if show_pw_teacher.get():
@@ -367,23 +370,28 @@ class MSAPortalApp:
             table.delete(*table.get_children())
             teacher_passwords.clear()
             for row in self.db.get_teachers():
-                item_id = table.insert("", "end", values=row)
-                if len(row) >= 5:
-                    pw = str(row[4])
+                t_id = row[0]
+                display_row = (f"T-{int(t_id):03d}",) + row[1:]
+                item_id = table.insert("", "end", values=display_row)
+                if len(display_row) >= 6:
+                    pw = str(display_row[5])
                     teacher_passwords[item_id] = pw
             toggle_teacher_password()
+
 
         def on_select(event):
             selected = table.focus()
             if not selected: return
             values = table.item(selected, 'values')
-            self.selected_id = values[0]
+            raw_id = str(values[0])
+            self.selected_id = int(raw_id.split('-')[1]) if '-' in raw_id else int(raw_id)
             tf.delete(0, tk.END); tf.insert(0, values[1])
-            tm.delete(0, tk.END)
-            tl.delete(0, tk.END); tl.insert(0, values[2])
-            dept_combo.set(values[3])
-            actual_pw = teacher_passwords.get(selected, values[4])
+            tm.delete(0, tk.END); tm.insert(0, values[2])
+            tl.delete(0, tk.END); tl.insert(0, values[3])
+            dept_combo.set(values[4])
+            actual_pw = teacher_passwords.get(selected, values[5])
             generated_password_str.set(actual_pw)
+
         
         table.bind("<<TreeviewSelect>>", on_select)
 
@@ -392,7 +400,9 @@ class MSAPortalApp:
             if tf.get().strip() and tl.get().strip() and d_id:
                 self.db.add_teacher(tf.get().strip(), tm.get().strip(), tl.get().strip(), d_id, "temp")
                 new_id = self.db.cursor.lastrowid
-                password = f"{new_id}{tl.get().strip()}"
+                # Format teacher id as T-000 and generate password using that id.
+                formatted_id = f"T-{int(new_id):03d}"
+                password = f"{int(new_id):03d}{tl.get().strip()}"
                 self.db.update_password("teachers", new_id, password)
                 generated_password_str.set(password)
                 self.show_teachers()
@@ -407,8 +417,9 @@ class MSAPortalApp:
 
         def delete():
             if self.selected_id:
-                self.db.delete_teacher(self.selected_id)
-                self.show_teachers()
+                if messagebox.askyesno("Confirm", "Deleting this teacher will delete connected assignments/grades!"):
+                    self.db.delete_teacher(self.selected_id)
+                    self.show_teachers()
             else: messagebox.showwarning("Error", "Select target profile first.")
 
         btn_frame = tk.Frame(self.content, bg="#F4F7FA")
@@ -467,15 +478,17 @@ class MSAPortalApp:
         table_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
         # Corrected parent context to table_frame
-        table = ttk.Treeview(table_frame, columns=("ID", "First Name", "Last Name", "Section", "PASSWORD"), show="headings")
+        table = ttk.Treeview(table_frame, columns=("ID", "First Name", "Middle Name", "Last Name", "Section", "Password"), show="headings")
         table.column("ID", width=50, anchor="center")
-        table.column("First Name", width=140, anchor="center")
-        table.column("Last Name", width=140, anchor="center")
+        table.column("First Name", width=120, anchor="center")
+        table.column("Middle Name", width=140, anchor="center")
+        table.column("Last Name", width=120, anchor="center")
         table.column("Section", width=140, anchor="center")
-        table.column("PASSWORD", width=130, anchor="center")
+        table.column("Password", width=130, anchor="center")
 
-        for c in ("ID", "First Name", "Last Name", "Section", "PASSWORD"):
+        for c in ("ID", "First Name", "Middle Name", "Last Name", "Section", "Password"):
             table.heading(c, text=c)
+
 
 
         vsb = ttk.Scrollbar(table_frame, orient="vertical", command=table.yview)
@@ -492,18 +505,19 @@ class MSAPortalApp:
         def mask_passwords():
             for item in table.get_children():
                 vals = list(table.item(item, 'values'))
-                if len(vals) >= 5:
-                    pw = student_passwords.get(item, str(vals[4]))
-                    vals[4] = '*' * len(pw) if pw else ''
+                if len(vals) >= 6:
+                    pw = student_passwords.get(item, str(vals[5]))
+                    vals[5] = '*' * len(pw) if pw else ''
                     table.item(item, values=vals)
 
         def reveal_passwords():
             for item in table.get_children():
                 vals = list(table.item(item, 'values'))
-                if len(vals) >= 5:
+                if len(vals) >= 6:
                     raw_pw = student_passwords.get(item, '')
-                    vals[4] = raw_pw
+                    vals[5] = raw_pw
                     table.item(item, values=vals)
+
 
         def toggle_password():
             if show_pw.get():
@@ -519,9 +533,11 @@ class MSAPortalApp:
             table.delete(*table.get_children())
             student_passwords.clear()
             for row in self.db.get_students():
-                item_id = table.insert("", "end", values=row)
-                if len(row) >= 5:
-                    pw = str(row[4])
+                s_id = row[0]
+                display_row = (f"S-{int(s_id):03d}",) + row[1:]
+                item_id = table.insert("", "end", values=display_row)
+                if len(display_row) >= 6:
+                    pw = str(display_row[5])
                     student_passwords[item_id] = pw
             toggle_password()
 
@@ -529,13 +545,15 @@ class MSAPortalApp:
             selected = table.focus()
             if not selected: return
             values = table.item(selected, 'values')
-            self.selected_id = values[0]
+            raw_id = str(values[0])
+            self.selected_id = int(raw_id.split('-')[1]) if '-' in raw_id else int(raw_id)
             sf.delete(0, tk.END); sf.insert(0, values[1])
-            sm.delete(0, tk.END)
-            sl.delete(0, tk.END); sl.insert(0, values[2])
-            sec_combo.set(values[3])
-            actual_pw = student_passwords.get(selected, values[4])
+            sm.delete(0, tk.END); sm.insert(0, values[2])
+            sl.delete(0, tk.END); sl.insert(0, values[3])
+            sec_combo.set(values[4])
+            actual_pw = student_passwords.get(selected, values[5])
             generated_password_student.set(actual_pw)
+
 
         table.bind("<<TreeviewSelect>>", on_select)
 
@@ -544,7 +562,9 @@ class MSAPortalApp:
             if sf.get().strip() and sl.get().strip() and s_id:
                 self.db.add_student(sf.get().strip(), sm.get().strip(), sl.get().strip(), s_id, "temp")
                 new_id = self.db.cursor.lastrowid
-                password = f"{new_id}{sf.get().strip()}"
+                # Format student id as S-000 and generate password using that id.
+                formatted_id = f"S-{int(new_id):03d}"
+                password = f"{int(new_id):03d}{sf.get().strip()}"
                 self.db.update_password("students", new_id, password)
                 generated_password_student.set(password)
                 self.show_students()
@@ -556,12 +576,13 @@ class MSAPortalApp:
                 self.db.update_student(self.selected_id, sf.get().strip(), sm.get().strip(), sl.get().strip(), s_id)
                 self.show_students()
             else: messagebox.showwarning("Error", "Select a valid row entry.")
-
         def delete():
             if self.selected_id:
-                self.db.delete_student(self.selected_id)
-                self.show_students()
-            else: messagebox.showwarning("Error", "Select a row record.")
+                if messagebox.askyesno("Confirm", "Deleting this student will delete connected grades!"):
+                    self.db.delete_student(self.selected_id)
+                    self.show_students()
+            else:
+                messagebox.showwarning("Error", "Select a row record.")
 
         btn_frame = tk.Frame(self.content, bg="#F4F7FA")
         btn_frame.pack(pady=5, anchor="center")
@@ -585,7 +606,9 @@ class MSAPortalApp:
         form.pack(pady=10)
 
         teacher_list = self.db.get_teachers()
-        teacher_dict = {f"{row[1]} {row[2]}": row[0] for row in teacher_list}
+        # row format: (id, firstname, middlename, lastname, dept_name, password)
+        teacher_dict = {f"{row[1]} {row[2]} {row[3]}".replace("  ", " ").strip(): row[0] for row in teacher_list}
+
         
         sec_list = self.db.get_sections()
         sec_dict = {row[1]: row[0] for row in sec_list}
@@ -615,17 +638,17 @@ class MSAPortalApp:
         table_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
         # Corrected parent context to table_frame
-        table = ttk.Treeview(table_frame, columns=("ID", "TEACHER", "SUBJECT", "SECTION", "A_YEAR", "SEMESTER"), show="headings")
-        for c in ("ID", "TEACHER", "SUBJECT", "SECTION", "A_YEAR", "SEMESTER"):
+        table = ttk.Treeview(table_frame, columns=("ID", "Teacher", "Subject", "Section", "Academic Year", "Semester"), show="headings")
+        for c in ("ID", "Teacher", "Subject", "Section", "Academic Year", "Semester"):
             table.heading(c, text=c)
 
         # Center all assignment table columns
         table.column("ID", width=50, anchor="center")
-        table.column("TEACHER", width=180, anchor="center")
-        table.column("SUBJECT", width=180, anchor="center")
-        table.column("SECTION", width=180, anchor="center")
-        table.column("A_YEAR", width=120, anchor="center")
-        table.column("SEMESTER", width=130, anchor="center")
+        table.column("Teacher", width=180, anchor="center")
+        table.column("Subject", width=180, anchor="center")
+        table.column("Section", width=180, anchor="center")
+        table.column("Academic Year", width=120, anchor="center")
+        table.column("Semester", width=130, anchor="center")
 
 
         vsb = ttk.Scrollbar(table_frame, orient="vertical", command=table.yview)

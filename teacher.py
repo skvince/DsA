@@ -125,37 +125,41 @@ class TeacherPortalApp:
         students_data = []
 
         def compute_grade(prelim, midterm, final):
+            # Only compute AVG/GWA/REMARK when all three have valid numeric inputs.
             if prelim == "" or midterm == "" or final == "":
                 return "", "", ""
             try:
                 p = float(prelim)
                 m = float(midterm)
                 f = float(final)
-                avg = round((p + m + f) / 3, 2)
-                if avg >= 97:
-                    gwa = 1.00
-                elif avg >= 94:
-                    gwa = 1.25
-                elif avg >= 91:
-                    gwa = 1.50
-                elif avg >= 88:
-                    gwa = 1.75
-                elif avg >= 85:
-                    gwa = 2.00
-                elif avg >= 82:
-                    gwa = 2.25
-                elif avg >= 79:
-                    gwa = 2.50
-                elif avg >= 76:
-                    gwa = 2.75
-                elif avg >= 75:
-                    gwa = 3.00
-                else:
-                    gwa = 5.00
-                remark = "PASSED" if avg >= 75 else "FAILED"
-                return f"{avg:.2f}", f"{gwa:.2f}", remark
             except ValueError:
                 return "", "", ""
+
+            avg = round((p + m + f) / 3, 2)
+            if avg >= 97:
+                gwa = 1.00
+            elif avg >= 94:
+                gwa = 1.25
+            elif avg >= 91:
+                gwa = 1.50
+            elif avg >= 88:
+                gwa = 1.75
+            elif avg >= 85:
+                gwa = 2.00
+            elif avg >= 82:
+                gwa = 2.25
+            elif avg >= 79:
+                gwa = 2.50
+            elif avg >= 76:
+                gwa = 2.75
+            elif avg >= 75:
+                gwa = 3.00
+            else:
+                gwa = 5.00
+
+            remark = "PASSED" if avg >= 75 else "FAILED"
+            return f"{avg:.2f}", f"{gwa:.2f}", remark
+
 
         def load_students():
             students_data.clear()
@@ -190,10 +194,17 @@ class TeacherPortalApp:
                 name = f"{first} {middle} {last}".replace("  ", " ").strip()
 
                 existing = grade_map.get(name)
-                p = existing[6] if existing else ""
-                m = existing[7] if existing else ""
-                f = existing[8] if existing else ""
+                # grade_map row layout from Database.get_grades():
+                # (id, student_name, section_name, subject, academic_year, semester, prelim, midterm, final, average, gwa, remark)
+                # Treat NULL as empty, and 0.0 (default) as empty so UI won't compute.
+                p = existing[6] if existing and existing[6] not in (None, 0) else ""
+                m = existing[7] if existing and existing[7] not in (None, 0) else ""
+                f = existing[8] if existing and existing[8] not in (None, 0) else ""
+
+                # Always show row for every student even if grades are incomplete.
+                # AVG/GWA/REMARK will stay blank until prelim/midterm/final are all present.
                 avg, gwa, remark = compute_grade(p, m, f)
+
                 item_id = table.insert("", "end", values=(s[0], name, p, m, f, avg, gwa, remark))
                 students_data.append({
                     "id": s[0],
@@ -235,6 +246,7 @@ class TeacherPortalApp:
             entry.bind("<Return>", finish_edit)
             entry.bind("<FocusOut>", lambda e: finish_edit())
 
+
         table.bind("<Double-1>", on_cell_double_click)
 
         def save_all_grades():
@@ -253,29 +265,46 @@ class TeacherPortalApp:
             year = ay_entry.get().strip()
             sem = sem_combo.get()
             saved = 0
+            inserted = 0
+            updated = 0
             for item in students_data:
                 tbl_id = item["tbl_id"]
                 prelim = table.set(tbl_id, "PRELIM")
                 midterm = table.set(tbl_id, "MID")
                 final = table.set(tbl_id, "FINAL")
-                try:
-                    p = float(prelim) if prelim != "" else 0
-                    m = float(midterm) if midterm != "" else 0
-                    f = float(final) if final != "" else 0
-                except ValueError:
-                    continue
-                if item["existing"]:
-                    self.db.update_grade(item["existing"][0], p, m, f)
-                    item["existing"] = (item["existing"][0], item["existing"][1], item["existing"][2], item["existing"][3], item["existing"][4], item["existing"][5], p, m, f)
+
+                def to_float_or_zero(val):
+                    if val is None:
+                        return 0.0
+                    s = str(val).strip()
+                    if s == "":
+                        return 0.0
+                    try:
+                        return float(s)
+                    except ValueError:
+                        return 0.0
+
+                p = to_float_or_zero(prelim)
+                m = to_float_or_zero(midterm)
+                f = to_float_or_zero(final)
+
+                existing = item.get("existing")
+                # existing layout from get_grades():
+                # (id, student_name, section_name, subject, academic_year, semester, prelim, midterm, final, ...)
+                if existing:
+                    grade_row_id = existing[0]
+                    self.db.update_grade(grade_row_id, p, m, f)
+                    updated += 1
                 else:
                     self.db.add_grade(self.teacher_id, sec_id, item["id"], subject, year, sem, p, m, f)
-                    new_grade = self.db.cursor.execute("SELECT last_insert_rowid()").fetchone()[0]
-                    item["existing"] = (new_grade, item["name"], sub_combo.get(), subject, year, sem, p, m, f)
+                    inserted += 1
+
                 saved += 1
-            if saved > 0:
-                messagebox.showinfo("Success", f"{saved} grade(s) saved successfully!")
-            else:
-                messagebox.showwarning("Notice", "No changes to save.")
+
+            messagebox.showinfo(
+                "Save Grades",
+                f"{saved} grade row(s) processed. Inserted: {inserted}, Updated: {updated}."
+            )
 
         btn_frame = tk.Frame(self.content, bg="#F4F7FA")
         btn_frame.pack(pady=5)

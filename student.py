@@ -155,12 +155,12 @@ class StudentPortalApp:
                     grades.midterm,
                     grades.final,
                     CASE 
-                        WHEN grades.prelim IS NOT NULL AND grades.midterm IS NOT NULL AND grades.final IS NOT NULL 
+                        WHEN grades.prelim > 0 AND grades.midterm > 0 AND grades.final > 0
                         THEN ROUND((grades.prelim + grades.midterm + grades.final) / 3, 2)
-                        ELSE NULL 
+                        ELSE NULL
                     END as average,
                     CASE 
-                        WHEN grades.prelim IS NOT NULL AND grades.midterm IS NOT NULL AND grades.final IS NOT NULL
+                        WHEN grades.prelim > 0 AND grades.midterm > 0 AND grades.final > 0
                         THEN CASE 
                             WHEN ROUND((grades.prelim + grades.midterm + grades.final) / 3, 2) >= 97 THEN 1.00
                             WHEN ROUND((grades.prelim + grades.midterm + grades.final) / 3, 2) >= 94 THEN 1.25
@@ -176,10 +176,11 @@ class StudentPortalApp:
                         ELSE NULL
                     END as gwa,
                     CASE 
-                        WHEN grades.prelim IS NOT NULL AND grades.midterm IS NOT NULL AND grades.final IS NOT NULL
+                        WHEN grades.prelim > 0 AND grades.midterm > 0 AND grades.final > 0
                         THEN CASE WHEN ROUND((grades.prelim + grades.midterm + grades.final) / 3, 2) >= 75 THEN 'PASSED' ELSE 'FAILED' END
                         ELSE NULL
                     END as remark
+
                 FROM grades
                 JOIN sections ON grades.section_id = sections.id
                 WHERE grades.student_id=? AND grades.academic_year=? AND grades.semester=?
@@ -190,7 +191,7 @@ class StudentPortalApp:
             try:
                 rows = self.db.cursor.execute(query, params).fetchall()
                 for row in rows:
-                    table.insert("", "end", values=(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10]))
+                    table.insert("", "end", values=(row[0], row[1], row[2], row[3], row[4], row[5] if row[5] is not None else "", row[6] if row[6] is not None else "", row[7] if row[7] is not None else "", row[8] if row[8] is not None else "", row[9] if row[9] is not None else "", row[10] if row[10] is not None else ""))
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load grades:\n{e}")
 
