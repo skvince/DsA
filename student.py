@@ -31,7 +31,7 @@ class StudentPortalApp:
         try:
             logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
             pil_img = Image.open(logo_path)
-            pil_img = pil_img.resize((70,70), Image.Resampling.LANCZOS)
+            pil_img = pil_img.resize((80, 60), Image.Resampling.LANCZOS)
             self.logo_img = ImageTk.PhotoImage(pil_img)
             logo_label = tk.Label(header_frame, image=self.logo_img, bg="#0B2240")
             logo_label.pack(side="left", padx=(0, 5))
@@ -117,15 +117,14 @@ class StudentPortalApp:
         table_frame.pack(expand=False) # Keeps it from stretching blindly across the layout
 
         table = ttk.Treeview(table_frame, columns=(
-            "CODE", "SUBJECT", "SECTION", "PRELIM", "MID", "FINAL", "AVERAGE", "GWA", "REMARK"
+            "CODE", "SUBJECT", "PRELIM", "MID", "FINAL", "AVERAGE", "GWA", "REMARK"
         ), show="headings")
 
-        headers = ["CODE", "SUBJECT", "SECTION", "PRELIM", "MID", "FINAL", "AVERAGE", "GWA", "REMARK"]
+        headers = ["CODE", "SUBJECT", "PRELIM", "MID", "FINAL", "AVERAGE", "GWA", "REMARK"]
         for h in headers:
             table.heading(h, text=h)
         table.column("CODE", width=70, anchor="center")
         table.column("SUBJECT", width=140)
-        table.column("SECTION", width=100)
         table.column("PRELIM", width=65, anchor="center")
         table.column("MID", width=65, anchor="center")
         table.column("FINAL", width=65, anchor="center")
@@ -148,7 +147,6 @@ class StudentPortalApp:
                 SELECT 
                     COALESCE(g.id, -1) as id,
                     a.subject,
-                    s.section_name,
                     sub.subject_code,
                     g.prelim,
                     g.midterm,
@@ -196,7 +194,7 @@ class StudentPortalApp:
             try:
                 rows = self.db.cursor.execute(query, params).fetchall()
                 for row in rows:
-                    table.insert("", "end", values=(row[3], row[1], row[2], row[4] if row[4] is not None else "", row[5] if row[5] is not None else "", row[6] if row[6] is not None else "", row[7] if row[7] is not None else "", row[8] if row[8] is not None else "", row[9] if row[9] is not None else ""))
+                    table.insert("", "end", values=(row[2], row[1], row[3] if row[3] is not None else "", row[4] if row[4] is not None else "", row[5] if row[5] is not None else "", row[6] if row[6] is not None else "", row[7] if row[7] is not None else "", row[8] if row[8] is not None else ""))
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load grades:\n{e}")
 

@@ -100,7 +100,7 @@ try:
     pil_img = Image.open(img_path)
     
     # Resize the logo beautifully to fit the header row profile (120x120 pixels)
-    pil_img = pil_img.resize((120, 120), Image.Resampling.LANCZOS)
+    pil_img = pil_img.resize((120, 100), Image.Resampling.LANCZOS)
     logo_photo = ImageTk.PhotoImage(pil_img)
     
     # Render the actual image logo on the left

@@ -32,7 +32,7 @@ class MSAPortalApp:
         try:
             logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
             pil_img = Image.open(logo_path)
-            pil_img = pil_img.resize((70, 70), Image.Resampling.LANCZOS)
+            pil_img = pil_img.resize((80, 60), Image.Resampling.LANCZOS)
             self.logo_img = ImageTk.PhotoImage(pil_img)
             logo_label = tk.Label(header_frame, image=self.logo_img, bg="#0B2240")
             logo_label.pack(side="left", padx=(0, 5))
